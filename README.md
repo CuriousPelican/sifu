@@ -6,6 +6,8 @@ Sifu is a project I started in 2023 because I wanted to make a simple water rock
 
 If you want an effective and capable (more than this one) simulator, you can go to [AirCommandRockets' Web-based Simulator](http://www.aircommandrockets.com/sim/simulator.htm). It is a rewrite of the [old java simulator](https://www.et.byu.edu/~wheeler/benchtop/sim.php) made in java in 2002 by dean's wheeler (couldn't get it to work). Both (my simulator and AirCommandRockets' one) are based on [Dean Wheeler's work](https://www.et.byu.edu/~wheeler/benchtop/thrust.php) but mines doesn't take into account the gaz impulse phase.
 
+**Warning !** All comments in the code are in french but I followed Dean's Wheeler notations so even whithout understanding french you should be able to understand more or less what the program is doing (edit: for the settings you should probably translate).
+
 ### Goal
 
 Versatile python simulation of a water rockets and the physics involved.
