@@ -21,7 +21,7 @@ Cd = 0.5 # coef de trainée (sans unité)
 
 # Remplissage & pression
 P = 7 # pression de remplissage de la bouteille (en bar)
-Vl = 0.5 # volume (en L) du liquide de propulsion (eau) - < volume_bouteille
+Vl0 = 0.5 # volume (en L) initial du liquide de propulsion (eau) - < volume_bouteille
 
 # Environnement
 T = 25 # temperature (en °C)
@@ -50,9 +50,10 @@ rho_air = 1.292*273.15/T # 1.292 kg/m^3 pour T=0°C
 
 
 
-############################## Bouteille & son volume ##############################
-
+############################## Bouteille ##############################
 # Referentiel Bouteille - z est la distance axiale par rapport à la sotrie de la tuyère (flux supposé unidirectionnel)
+
+H = 0 # H(t) hauteur interface air-liquide
 
 # Renvoie le rayon a z donné - basé sur puis arctan entre -param_tan et param_tan et 
 def R(z):
@@ -70,7 +71,6 @@ def R(z):
 def A(z):
   return np.pi*R(z)**2
 
-
 V_ret = integrate.quad(A, 0, z_ret)[0] # volume (en L) de z=0 a z=z_ret
 print(f"V_ret = {round(V_ret*1000, 3)} L (volume de z=0 à z=z_ret={z_ret*1000} mm)")
 
@@ -81,13 +81,28 @@ print(f"Donc z_max={round(z_max*100, 1)}cm (hauteur totale bouteille)")
 # plt.plot([R(z) for z in np.linspace(0,z_ret,100)])
 # plt.show()
 
-H = "hum" # H(t) hauteur interface air-liquide
-u = "hum" # u(z,t) vitesse axiale fluide/bouteille
-rho = "hum" # rho(z,t) masse volumique
+# Renvoie rho a z donné & H fixé
+def rho(z):
+  if z>H:
+    return rho_air
+  else:
+    return rho_l
 
+# Masse linéique axiale rho(z)*A(z) à H fixé
+def dm(z):
+  return rho(z)*A(z)
 
+# Renvoie la masse totale de la fusée à H fixé
+def m_tot():
+  return mb + integrate.quad(dm, 0, z_max)[0]
+
+# Renvoie le volume de liquide à H fixe
+def Vl():
+  return integrate.quad(dm, 0, H)[0]
 
 ############################## 4 Later ##############################
+
+u = "hum" # u(z,t) vitesse axiale fluide/bouteille
 
 # Referentiel Terrestre - y est la distance verticale entre le sol et la fusée (vol supposé purement vertical)
 y = [] # y(t) altitude fusée
