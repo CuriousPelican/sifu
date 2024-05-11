@@ -21,7 +21,13 @@ Cd = 0.5 # coef de trainée (sans unité)
 
 # Remplissage & pression
 P = 7 # pression de remplissage de la bouteille (en bar)
-Vl0 = 0.5 # volume (en L) initial du liquide de propulsion (eau) - < volume_bouteille
+Vw0 = 0.5 # volume (en L) initial du liquide de propulsion (eau) - doit être < volume_bouteille
+
+# Lanceur
+R_TO = 4 # rayon (en mm) extérieur du tube de lancement
+R_TI = 3 # rayon (en mm) intérieur du tube de lancement
+L_T = 200 # longueur (en mm) du tube de lancement
+Vl = 0.5 # volume (en L) du lanceur
 
 # Environnement
 T = 25 # temperature (en °C)
@@ -38,9 +44,13 @@ Rt /= 1000
 z_ret /= 1000
 mb /= 1000
 P *= 100000
-Vl0 /= 1000
+Vw0 /= 1000
 T += 273.15
 P_atm *= 100000
+R_TO /= 1000
+R_TI /= 1000
+L_T /= 1000
+Vl /= 1000
 
 # Constantes
 rho_l = 1000 # 999.972 kg/m^3 pour l'eau
@@ -50,7 +60,8 @@ rho_air = 1.292*273.15/T # 1.292 kg/m^3 pour T=0°C
 
 
 
-############################## Géométrie bouteille & Init ##############################
+############################## R(z), A(z), z_max ##############################
+
 # Referentiel Bouteille - z est la distance axiale par rapport à la sotrie de la tuyère (flux supposé unidirectionnel)
 
 # Renvoie le rayon a z donné - basé sur puis arctan entre -param_tan et param_tan et 
@@ -73,16 +84,19 @@ V_ret = integrate.quad(A, 0, z_ret)[0] # volume (en L) de z=0 a z=z_ret
 print(f"V_ret = {round(V_ret*1000, 3)} L (volume de z=0 à z=z_ret={z_ret*1000} mm)")
 z_max = (Vb-V_ret)/(np.pi*Rb**2) + z_ret # hauteur (en m) de la bouteille
 print(f"Donc z_max={round(z_max*100, 1)}cm (hauteur totale bouteille)")
-
 # Test courbe rétrécissement
 # plt.plot([R(z) for z in np.linspace(0,z_ret,100)])
 # plt.show()
 
+
+
+############################## H(Vw,e), rho(z), m_tot(H), Vw(H) ##############################
+
 # Renvoie H, hauteur de liquide avec une précision e
 # pour une volume de liquide V donné par recherche par dichotomie sur V
-def H(V,e):
+def H(Vw,e):
   def f(z):
-    return integrate.quad(A, 0, z)[0]-V
+    return integrate.quad(A, 0, z)[0]-Vw
   a,b = 0,z_max
   while (f(b)-f(a))>e:
     m = (a+b)/2
@@ -91,8 +105,7 @@ def H(V,e):
     else:
       a = m
   return m,f(m)
-
-H0 = H(Vl0,10e-4)[0] # H(t) hauteur interface air-liquide
+H0 = H(Vw0,10e-4)[0] # H(t) hauteur interface air-liquide
 
 # Renvoie rho à z & H donnés
 def rho(z,H):
@@ -110,8 +123,15 @@ def m_tot(H):
   return mb + integrate.quad(dm, 0, z_max, args=(H))[0]
 
 # Renvoie le volume de liquide dans la fusée à H donné
-def Vl(H):
+def Vw(H):
   return integrate.quad(dm, 0, H, args=(H))[0]
+
+
+
+############################## Lanceur & (y,v,a) ##############################
+
+A_TO = np.pi*R_TO**2 # section ext tube lancement
+A_TI= np.pi*R_TI**2 # section int tube lancement
 
 # Referentiel Terrestre - y est la distance verticale entre le sol et la fusée (vol supposé purement vertical)
 y = 0 # y(t) altitude fusée
