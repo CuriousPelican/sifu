@@ -53,7 +53,7 @@ L_T /= 1000
 Vl /= 1000
 
 # Constantes
-rho_l = 1000 # 999.972 kg/m^3 pour l'eau
+rho_w = 1000 # 999.972 kg/m^3 pour l'eau
 R = 8.31 # 8.3144621 J/K/mol - constante gazs parfaits
 M_air = 0.029 # 28.965 g/mol - masse molaire air (en kg/mol)
 rho_air = 1.292*273.15/T # 1.292 kg/m^3 pour T=0°C
@@ -112,7 +112,7 @@ def rho(z,H):
   if z>=H:
     return rho_air
   else:
-    return rho_l
+    return rho_w
 
 # Masse linéique axiale rho(z,H)*A(z)
 def dm(z,H):
