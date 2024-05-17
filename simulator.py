@@ -12,6 +12,7 @@ import time
 
 # Simulation
 dz = 0.01 # pas (en mm) utilisé pour l'integration du volume de la bouteille, defaut 10µm
+dt = 0.1 # pas (en ms) utilisé pour la discretisation du temps (integration & eq diff), defaut 0.1ms
 
 # Bouteille (lorsque l'on parle de la la bouteille, est a comprendre la chambre de pression & la tuyère)
 Vb = 1 # volume (en L) de la bouteille
@@ -22,7 +23,7 @@ mb = 100 # masse a vide (en g) de la bouteille
 Cd = 0.5 # coef de trainée (sans unité)
 
 # Remplissage & pression
-P = 7 # pression de remplissage de la bouteille (en bar)
+p0 = 7 # surpression de remplissage de la bouteille (en bar)
 Vw0 = 0.5 # volume (en L) initial du liquide de propulsion (eau) - doit être < volume_bouteille
 
 # Lanceur
@@ -32,7 +33,7 @@ L_T = 200 # longueur (en mm) du tube de lancement
 Vl = 0.5 # volume (en L) du lanceur
 
 # Environnement
-T = 25 # temperature (en °C)
+T0 = 25 # temperature (en °C)
 P_atm = 1.01325 # pression atmosphérique (en bar)
 
 
@@ -41,25 +42,30 @@ P_atm = 1.01325 # pression atmosphérique (en bar)
 
 # Conversions SI
 dz /= 1000
+dt /= 1000
 Vb /= 1000
 Rb /= 1000
 Rt /= 1000
 z_ret /= 1000
 mb /= 1000
-P *= 100000
+p0 *= 100000
 Vw0 /= 1000
-T += 273.15
+T0 += 273.15
 P_atm *= 100000
 R_TO /= 1000
 R_TI /= 1000
 L_T /= 1000
 Vl /= 1000
 
+P0 = p0 + P_atm
+
 # Constantes
 rho_w = 1000 # 999.972 kg/m^3 pour l'eau
-R = 8.31 # 8.3144621 J/K/mol - constante gazs parfaits
+R_GP = 8.31 # 8.3144621 J/K/mol - constante gazs parfaits
 M_air = 0.029 # 28.965 g/mol - masse molaire air (en kg/mol)
-rho_air = 1.292*273.15/T # 1.292 kg/m^3 pour T=0°C
+rho_air = 1.292*273.15/T0 # 1.292 kg/m^3 pour T=0°C au niveau de la mer (GP, P*M/R=cste)
+gamma_air = 1.4 # Indice adiabatique air
+g = 9.8 # 9.80665 m/s^2 (conference poids & mesures 1901) - Acceleration de la pesanteur à la surface de la terre 
 
 
 
@@ -67,10 +73,11 @@ rho_air = 1.292*273.15/T # 1.292 kg/m^3 pour T=0°C
 
 # Referentiel Bouteille - z est la distance axiale par rapport à la sotrie de la tuyère (flux supposé unidirectionnel)
 
+z_goulot = 0.26*z_ret # z auquel le goulot se termine
+
 # Renvoie le rayon a z donné - basé sur puis arctan entre -param_tan et param_tan et 
 def R(z):
   param_tan = 1.8 # meilleurs parametres trouvés pour correspondre a mes bouteilles
-  z_goulot = 0.26*z_ret
   if z>=z_ret:
     return Rb
   elif z<=z_goulot:
@@ -87,45 +94,111 @@ def A(z):
 # plt.plot([R(z) for z in np.linspace(0,z_ret,100)])
 # plt.show()
 
+
+
 ############################## DISCRETISATION H(Vw,e), rho(z), m_tot(H), Vw(H) ##############################
 
 # Methode simpson & discretisation z
-# Renvoie la liste de z, A(z) & V(z) en partant de 0 discretisés, ainsi que V_ret & z_max
+# Renvoie les tableaux de z, A(z) & V(z) en partant de 0 discretisés, ainsi que V_ret & z_max
 def init_bouteille():
   # Calculs avant rétrécissement
-  z_liste1 = np.arange(0,z_ret+dz,dz)
-  A_liste1 = np.array([A(z) for z in z_liste1])
-  V_liste1 = integrate.cumulative_simpson(A_liste1,dx=dz) # liste des volumes, V[i] = volume entre 0 et z_liste1[i]
+  z_tab1 = np.arange(0,z_ret+dz,dz)
+  print(len(z_tab1))
+  A_tab1 = np.array([A(z) for z in z_tab1])
+  V_tab1 = integrate.cumulative_simpson(A_tab1,dx=dz) # tableau des volumes, V[i] = volume entre 0 et z_tab1[i]
 
   # V_ret & z_max
-  V_ret = V_liste1[-1] # volume (en m^3) de z=0 a z=z_ret
+  V_ret = V_tab1[-1] # volume (en m^3) de z=0 a z=z_ret
   print(f"V_ret = {round(V_ret*1000, 3)} L (volume de z=0 à z=z_ret={z_ret*1000} mm)")
   z_max = (Vb-V_ret)/(np.pi*Rb**2) + z_ret # hauteur (en m) de la bouteille
   print(f"Donc z_max={round(z_max*100, 1)}cm (hauteur totale bouteille)")
 
   # Calculs après rétrécissement
-  z_liste2 = np.arange(z_ret+dz,z_max+dz,dz)
-  A_liste2 = np.array([A(z) for z in z_liste2])
-  V_liste2 = [np.pi*Rb**2*(z-z_ret) for z in z_liste2]
+  z_tab2 = np.arange(z_ret+dz,z_max+dz,dz)
+  A_tab2 = np.array([A(z) for z in z_tab2])
+  V_tab2 = [np.pi*Rb**2*(z-z_ret)+V_tab1[-1] for z in z_tab2]
 
-  z_liste = np.concatenate((z_liste1,z_liste2))
-  A_liste = np.concatenate((A_liste1,A_liste2))
-  V_liste = np.concatenate((V_liste1,V_liste2))
+  z_tab = np.concatenate((z_tab1,z_tab2))
+  A_tab = np.concatenate((A_tab1,A_tab2))
+  V_tab = np.concatenate((V_tab1,V_tab2))
 
-  return (z_liste,A_liste,V_liste,V_ret,z_max)
+  return (z_tab,A_tab,V_tab,V_ret,z_max)
 
-(z_liste,A_liste,V_liste,V_ret,z_max) = init_bouteille()
+z_tab,A_tab,V_tab,V_ret,z_max = init_bouteille()
+print(V_ret)
+print(integrate.quad(A, 0, z_ret,epsabs=1e-12)[0])
 
-############################## Lanceur & (y,v,a) ##############################
+# Renvoie l'indice de l'element le plus proche de e dans une liste de flotants L donnée
+def nearest(L,e):
+  a,b=0,len(L)
+  while len(L[a:b])>2:
+    m = (a+b)//2
+    if L[m]>=e:
+      b = m
+    else:
+      a = m
+  if (L[a]-e)>(L[b]-e):
+    return b
+  else:
+    return a
+
+# Renvoie l'indice dans z_tab de l'element le plus proche de H & |V(H)-Vw|
+# pour un volume de liquide Vw donné par recherche par dichotomie dans V_tab
+def H(Vw):
+  i = nearest(V_tab,Vw)
+  return i,abs(V_tab[i]-Vw)
+
+H0 = z_tab[H(Vw0)[0]] # H0 hauteur initiale interface air-liquide
+
+# Renvoie le volume de liquide dans la fusée à H donné
+def Vw(H):
+  i_H = nearest(z_tab,H)
+  return V_tab[i_H]
+
+
+
+############################## Phase tube de lancement (noté LT, pour Launch Tube) ##############################
 
 A_TO = np.pi*R_TO**2 # section ext tube lancement
 A_TI= np.pi*R_TI**2 # section int tube lancement
 
-# Referentiel Terrestre - y est la distance verticale entre le sol et la fusée (vol supposé purement vertical)
-y = 0 # y(t) altitude fusée
-v = 0 # v(t)
-a = 0 # a(t)
+rho0 = P0*M_air/R_GP/T0  # masse volumique air dans la bouteille avant lancement
+                      # (temps entre pressurisation & lancement assez grand pour que T(air dans la bouteille) = T0)
+Vinit = Vl + Vb - Vw0 - L_T*(A_TO-A_TI) # Volume initial de gaz (bouteille+lanceur)
+m0 = mb + rho_w*(Vb-Vw0) + rho0*Vinit
 
+# Referentiel Terrestre - y est la distance verticale entre le sol et la fusée (vol supposé purement vertical)
+t_LT = [0]
+y_LT = [0] # y(t) altitude fusée
+v_LT = [0] # v(t)
+a_LT = [0] # a(t)
+
+# Resolution eq diff en y(t) jusqu'a ce que y = L_T
+
+def f_LT(t,Y):
+  d2y_dt = -g + A_TO/m0*(P0*(Vinit/(Vinit+Y[0]*A_TO))**gamma_air - P_atm)
+  return (Y[1],d2y_dt)
+
+Y0 = [y_LT[0], v_LT[0]]  # Conditions initiales, y(0)=v(0)=0
+sol = integrate.RK45(f_LT, t_LT[0], Y0, np.inf) # Initialisation du solveur (Runge-Kutta d'ordre 4)
+
+# Résoudre & remplir les listes
+while sol.status == 'running' and y_LT[-1] < L_T:
+    sol.step(dt) # Faire un pas de dt
+    t_LT.append(sol.t)
+    y_LT.append(sol.y[0])
+    v_LT.append(sol.y[1])
+    a_LT.append(f_LT(sol.y,sol.t)[1])
+
+# Test courbe launch tube
+plt.plot(y_LT)
+plt.show()
+
+
+
+############################## Phase ejection liquide (noté WI, pour Water Impulse) ##############################
+
+rho1 = rho0*Vinit/(Vinit+L_T*A_TO)
 
 
 ############################## 4 Later ##############################
@@ -155,7 +228,6 @@ print(f"Donc z_max={round(z_max*100, 1)}cm (hauteur totale bouteille)")
 
 # Renvoie H, hauteur de liquide avec une précision e
 # pour une volume de liquide V donné par recherche par dichotomie sur V
-
 def H(Vw,e):
   def f(z):
     return integrate.quad(A, 0, z)[0]-Vw
