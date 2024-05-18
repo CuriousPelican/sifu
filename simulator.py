@@ -125,8 +125,9 @@ def init_bouteille():
   return (z_tab,A_tab,V_tab,V_ret,z_max)
 
 z_tab,A_tab,V_tab,V_ret,z_max = init_bouteille()
-print(V_ret)
-print(integrate.quad(A, 0, z_ret,epsabs=1e-12)[0])
+
+# print(V_ret)
+#print(integrate.quad(A, 0, z_ret,epsabs=1e-12)[0])
 
 # Renvoie l'indice de l'element le plus proche de e dans une liste de flotants L donnée
 def nearest(L,e):
@@ -159,6 +160,12 @@ def Vw(H):
 
 ############################## Phase tube de lancement (noté LT, pour Launch Tube) ##############################
 
+# Referentiel Terrestre - y est la distance verticale entre le sol et la fusée (vol supposé purement vertical)
+t_LT = [0] # tableau des temps pour la phase du launch tube
+y_LT = [0] # tableau representant y(t) (altitude fusée) pour la phase du launch tube
+v_LT = [0] # v(t)
+a_LT = [0] # a(t)
+
 A_TO = np.pi*R_TO**2 # section ext tube lancement
 A_TI= np.pi*R_TI**2 # section int tube lancement
 
@@ -167,12 +174,6 @@ rho0 = P0*M_air/R_GP/T0  # masse volumique air dans la bouteille avant lancement
 Vinit = Vl + Vb - Vw0 - L_T*(A_TO-A_TI) # Volume initial de gaz (bouteille+lanceur)
 m0 = mb + rho_w*(Vb-Vw0) + rho0*Vinit
 
-# Referentiel Terrestre - y est la distance verticale entre le sol et la fusée (vol supposé purement vertical)
-t_LT = [0]
-y_LT = [0] # y(t) altitude fusée
-v_LT = [0] # v(t)
-a_LT = [0] # a(t)
-
 # Resolution eq diff en y(t) jusqu'a ce que y = L_T
 
 def f_LT(t,Y):
@@ -180,20 +181,25 @@ def f_LT(t,Y):
   return (Y[1],d2y_dt)
 
 Y0 = [y_LT[0], v_LT[0]]  # Conditions initiales, y(0)=v(0)=0
-sol = integrate.RK45(f_LT, t_LT[0], Y0, np.inf) # Initialisation du solveur (Runge-Kutta d'ordre 4)
+sol = integrate.RK45(f_LT, t_LT[0], Y0, np.inf, max_step=dt, rtol=1e10, atol=1e10) # Initialisation du solveur (Runge-Kutta d'ordre 4)
+# erreurs suffisement grandes pour que le facteur limitant soit le max_step
 
 # Résoudre & remplir les listes
 while sol.status == 'running' and y_LT[-1] < L_T:
-    sol.step(dt) # Faire un pas de dt
-    t_LT.append(sol.t)
+    sol.step() # Faire un pas de dt
+    t_LT.append(round(sol.t,int(np.log10(1/dt))))
     y_LT.append(sol.y[0])
     v_LT.append(sol.y[1])
-    a_LT.append(f_LT(sol.y,sol.t)[1])
+    a_LT.append(f_LT(sol.t,sol.y)[1])
+
+for i in range(10):
+  print(t_LT[i], y_LT[i])
 
 # Test courbe launch tube
-plt.plot(y_LT)
-plt.show()
-
+# plt.plot(y_LT)
+# plt.plot(v_LT)
+# plt.plot(a_LT)
+# plt.show()
 
 
 ############################## Phase ejection liquide (noté WI, pour Water Impulse) ##############################
