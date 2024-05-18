@@ -192,8 +192,8 @@ while sol.status == 'running' and y_LT[-1] < L_T:
     v_LT.append(sol.y[1])
     a_LT.append(f_LT(sol.t,sol.y)[1])
 
-for i in range(10):
-  print(t_LT[i], y_LT[i])
+# for i in range(10):
+#   print(t_LT[i], y_LT[i])
 
 # Test courbe launch tube
 # plt.plot(y_LT)
